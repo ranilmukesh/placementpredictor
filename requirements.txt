@@ -22,3 +22,4 @@ python-multipart
 sh
 jinja2
 python-slugify
+sqlalchemy
