@@ -1,11 +1,10 @@
 # Use official Python 3.11 as base image
 FROM python:3.11-slim
 
-# Install system dependencies for scientific compute
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
-    software-properties-common \
     git \
     && rm -rf /var/lib/apt/lists/*
 
@@ -24,6 +23,9 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application files
 COPY --chown=user . .
 
+# Run training to generate placement_artifacts.pkl before starting
+RUN python train_model.py
+
 # HF Spaces only allows writing to /tmp
 RUN mkdir -p /tmp/tmp && chown -R user:user /tmp/tmp
 RUN ln -s /tmp/tmp tmp
@@ -36,5 +38,5 @@ ENV PORT=7860 \
 USER user
 EXPOSE 7860
 
-# Run with uvicorn directly (1 worker with multiple threads/concurrency handled by async)
+# Run with uvicorn
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "1"]
