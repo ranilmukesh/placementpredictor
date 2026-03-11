@@ -10,9 +10,13 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 import os
 import logging
+import sys
 from datetime import datetime
 from pytz import timezone
 from starlette.middleware.base import BaseHTTPMiddleware
+
+# Ensure IST timezone
+os.environ['TZ'] = 'Asia/Kolkata'
 
 # Setup IST timezone logging
 IST = timezone('Asia/Kolkata')
@@ -25,20 +29,39 @@ class ISTFormatter(logging.Formatter):
         if datefmt:
             return dt.strftime(datefmt)
         else:
-            return dt.strftime("%Y-%m-%d %H:%M:%S %Z")
+            return dt.strftime("%Y-%m-%d %H:%M:%S IST")
 
-# Only configure logs from main, not uvicorn multiple times
-if not logging.getLogger("uvicorn").handlers:
-    logging.basicConfig(
-        level=logging.INFO,
-        format='[%(asctime)s] %(levelname)s - %(name)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S %Z'
-    )
-    # Apply IST formatter
-    for handler in logging.root.handlers:
-        handler.setFormatter(ISTFormatter('[%(asctime)s] %(levelname)s - %(message)s'))
+def setup_logging():
+    """Setup logging for all loggers to use IST timestamps"""
+    formatter = ISTFormatter('[%(asctime)s] %(levelname)s - %(name)s - %(message)s')
+    
+    # Configure root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    
+    # Remove existing handlers
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+    
+    # Add new handlers with custom formatter
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+    root_logger.addHandler(console_handler)
+    
+    # Configure uvicorn loggers
+    for logger_name in ['uvicorn', 'uvicorn.access', 'uvicorn.error', 'fastapi']:
+        lg = logging.getLogger(logger_name)
+        lg.setLevel(logging.INFO)
+        # Clear existing handlers
+        for handler in lg.handlers[:]:
+            lg.removeHandler(handler)
+        # Use root logger's handlers
+        lg.handlers = root_logger.handlers
+        lg.propagate = True
+    
+    return logging.getLogger(__name__)
 
-logger = logging.getLogger(__name__)
+logger = setup_logging()
 
 def get_client_ip(request: Request) -> str:
     """Extract client IP from request headers or socket"""
@@ -54,11 +77,11 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         client_ip = get_client_ip(request)
         method = request.method
         path = request.url.path
-        logger.info(f"📨 Incoming | IP: {client_ip} | {method} {path}")
+        logger.info(f"📨 [IP: {client_ip}] {method} {path}")
         
         response = await call_next(request)
         
-        logger.info(f"✅ Response | IP: {client_ip} | {method} {path} | Status: {response.status_code}")
+        logger.info(f"✅ [IP: {client_ip}] {method} {path} → {response.status_code}")
         return response
 
 try:
@@ -113,10 +136,13 @@ def load_artifacts():
 
 @app.on_event("startup")
 async def startup_event():
+    logger.info("=" * 60)
+    logger.info("Application Startup")
+    logger.info("=" * 60)
     try:
         load_artifacts()
     except Exception as e:
-        logger.error(f"[!] Warning: {e}")
+        logger.error(f"[!] Startup Error: {e}")
 
 class StudentData(BaseModel):
     Age: int = Field(..., ge=15, le=40)

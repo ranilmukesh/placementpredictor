@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
     tzdata \
     && rm -rf /var/lib/apt/lists/*
 
-# Set timezone to Asia/Kolkata (IST)
+# Set timezone to Asia/Kolkata (IST) FIRST
 ENV TZ=Asia/Kolkata
 RUN ln -snf /usr/share/zoneinfo/Asia/Kolkata /etc/localtime && echo Asia/Kolkata > /etc/timezone
 
@@ -42,11 +42,20 @@ RUN python train_model.py
 RUN mkdir -p /tmp/tmp && chown -R user:user /tmp/tmp
 RUN ln -s /tmp/tmp tmp
 
+# Create startup script to ensure proper logging
+RUN cat > /home/user/app/entrypoint.sh << 'EOF'
+#!/bin/bash
+export TZ=Asia/Kolkata
+export PYTHONUNBUFFERED=1
+exec uvicorn main:app --host 0.0.0.0 --port 7860 --workers 4 --log-level info
+EOF
+RUN chmod +x /home/user/app/entrypoint.sh
+
 # Hugging Face PORT is 7860
 ENV PORT=7860
 
 USER user
 EXPOSE 7860
 
-# Run with uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "4"]
+# Run with startup script
+ENTRYPOINT ["/home/user/app/entrypoint.sh"]
