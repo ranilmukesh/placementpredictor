@@ -2,27 +2,81 @@ import pandas as pd
 import numpy as np
 import joblib
 import shap
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from typing import Optional, List
 import os
+import logging
+from datetime import datetime
+from pytz import timezone
+from starlette.middleware.base import BaseHTTPMiddleware
+
+# Setup IST timezone logging
+IST = timezone('Asia/Kolkata')
+
+# Configure logging with IST timezone
+class ISTFormatter(logging.Formatter):
+    """Custom formatter for IST timestamps"""
+    def formatTime(self, record, datefmt=None):
+        dt = datetime.fromtimestamp(record.created, tz=IST)
+        if datefmt:
+            return dt.strftime(datefmt)
+        else:
+            return dt.strftime("%Y-%m-%d %H:%M:%S %Z")
+
+# Only configure logs from main, not uvicorn multiple times
+if not logging.getLogger("uvicorn").handlers:
+    logging.basicConfig(
+        level=logging.INFO,
+        format='[%(asctime)s] %(levelname)s - %(name)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S %Z'
+    )
+    # Apply IST formatter
+    for handler in logging.root.handlers:
+        handler.setFormatter(ISTFormatter('[%(asctime)s] %(levelname)s - %(message)s'))
+
+logger = logging.getLogger(__name__)
+
+def get_client_ip(request: Request) -> str:
+    """Extract client IP from request headers or socket"""
+    if 'x-forwarded-for' in request.headers:
+        return request.headers['x-forwarded-for'].split(',')[0].strip()
+    elif 'x-real-ip' in request.headers:
+        return request.headers['x-real-ip']
+    else:
+        return request.client.host if request.client else "0.0.0.0"
+
+class LoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        client_ip = get_client_ip(request)
+        method = request.method
+        path = request.url.path
+        logger.info(f"📨 Incoming | IP: {client_ip} | {method} {path}")
+        
+        response = await call_next(request)
+        
+        logger.info(f"✅ Response | IP: {client_ip} | {method} {path} | Status: {response.status_code}")
+        return response
 
 try:
     from llm import start_chat_session, get_chat_response
     CHAT_AVAILABLE = True
-    print("[OK] LLM Chat module loaded")
+    logger.info("[OK] LLM Chat module loaded")
 except Exception as _llm_err:
     CHAT_AVAILABLE = False
-    print(f"[!] LLM Chat unavailable: {_llm_err}")
+    logger.warning(f"[!] LLM Chat unavailable: {_llm_err}")
 
 app = FastAPI(
     title="PlacementPredictor+",
     description="AI-powered placement prediction with explainable insights and career routing",
     version="1.0.0"
 )
+
+# Add logging middleware first
+app.add_middleware(LoggingMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -55,14 +109,14 @@ def load_artifacts():
     feature_names = artifacts['feature_names']
     routing_engine = artifacts.get('routing_engine')
     explainer = shap.TreeExplainer(model)
-    print("[OK] All artifacts loaded successfully!")
+    logger.info("[OK] All artifacts loaded successfully!")
 
 @app.on_event("startup")
 async def startup_event():
     try:
         load_artifacts()
     except Exception as e:
-        print(f"[!] Warning: {e}")
+        logger.error(f"[!] Warning: {e}")
 
 class StudentData(BaseModel):
     Age: int = Field(..., ge=15, le=40)
