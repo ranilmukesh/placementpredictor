@@ -1852,7 +1852,8 @@ input:checked+.sim-slider-round:before {
 
 @media (min-width: 480px) {
     .recommendations-grid {
-        grid-template-columns: 1fr 1fr;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     }
 }
 
@@ -1933,6 +1934,8 @@ input:checked+.sim-slider-round:before {
     font-size: 0.8125rem;
     color: var(--gray-500);
     line-height: 1.5;
+    word-break: break-word;
+    overflow-wrap: break-word;
 }
 
 /* Footer */
