@@ -121,22 +121,24 @@ from routing_engine import RoutingEngine
 model = None
 le_gender = None
 le_stream = None
-feature_names = None
 explainer = None
 routing_engine = None
+shap_model = None
+preprocessor = None
 
 def load_artifacts():
-    global model, le_gender, le_stream, feature_names, explainer, routing_engine
+    global model, le_gender, le_stream, explainer, routing_engine, shap_model, preprocessor
     if not os.path.exists(ARTIFACTS_PATH):
         raise FileNotFoundError(f"Artifacts file '{ARTIFACTS_PATH}' not found.")
     
     artifacts = joblib.load(ARTIFACTS_PATH)
     model = artifacts['model']
+    shap_model = artifacts['shap_model']
+    preprocessor = artifacts['preprocessor']
     le_gender = artifacts['le_gender']
     le_stream = artifacts['le_stream']
-    feature_names = artifacts['feature_names']
     routing_engine = artifacts.get('routing_engine')
-    explainer = shap.TreeExplainer(model)
+    explainer = shap.TreeExplainer(shap_model)
     logger.info("[OK] All artifacts loaded successfully!")
 
 @app.on_event("startup")
@@ -206,8 +208,8 @@ def prepare_input(data: StudentData) -> pd.DataFrame:
         'Hostel': data.Hostel,
         'HistoryOfBacklogs': data.HistoryOfBacklogs
     }])
-    # Reorder columns to match train features
-    return df[feature_names]
+    # Extract columns naturally based on dict order which matches train features order
+    return df
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
@@ -240,12 +242,13 @@ def get_placement_level(probability: float):
 
 @app.post("/predict", response_model=PredictionResponse)
 async def predict_placement(data: StudentData):
-    if model is None:
+    if model is None or preprocessor is None:
         raise HTTPException(status_code=503, detail="Model not loaded.")
     
     df = prepare_input(data)
-    prediction = int(model.predict(df)[0])
-    probability = float(model.predict_proba(df)[0][1])
+    df_processed = preprocessor.transform(df)
+    prediction = int(model.predict(df_processed)[0])
+    probability = float(model.predict_proba(df_processed)[0][1])
     risk_level, confidence = get_placement_level(probability)
     
     rec_job = None
@@ -288,11 +291,12 @@ def interpret_feature(feature_name: str, impact: float) -> str:
 
 @app.post("/explain", response_model=ExplainResponse)
 async def explain_pred(data: StudentData):
-    if model is None or explainer is None:
+    if model is None or explainer is None or preprocessor is None:
         raise HTTPException(status_code=503, detail="Model not loaded.")
     
     df = prepare_input(data)
-    shap_values = explainer.shap_values(df)
+    df_processed = preprocessor.transform(df)
+    shap_values = explainer.shap_values(df_processed)
     
     if isinstance(shap_values, list):
         vals = shap_values[1][0] if len(shap_values) > 1 else shap_values[0][0]
@@ -306,7 +310,7 @@ async def explain_pred(data: StudentData):
     else:
         base_value = float(explainer.expected_value)
         
-    feature_impact = list(zip(feature_names, vals.tolist()))
+    feature_impact = list(zip(df.columns, vals.tolist()))
     feature_impact.sort(key=lambda x: abs(x[1]), reverse=True)
     
     top_factors = []
@@ -328,12 +332,13 @@ async def explain_pred(data: StudentData):
 # Basic what-if replacing Medical conditions with CGPA/Internships
 @app.post("/whatif")
 async def whatif_analysis(data: StudentData):
-    if model is None:
+    if model is None or preprocessor is None:
         raise HTTPException(status_code=503, detail="Model not loaded.")
     
     def _predict(d: dict) -> float:
         df = prepare_input(StudentData(**d))
-        return float(model.predict_proba(df)[0][1]) * 100
+        df_processed = preprocessor.transform(df)
+        return float(model.predict_proba(df_processed)[0][1]) * 100
 
     orig_dict = data.model_dump()
     orig_risk = _predict(orig_dict)
@@ -342,23 +347,22 @@ async def whatif_analysis(data: StudentData):
     scenarios = []
     sid = 1
     
-    # Increase CGPA
-    if data.CGPA < 9.0:
-        mod = orig_dict.copy()
-        mod['CGPA'] = min(data.CGPA + 1.0, 10.0)
-        mod_risk = _predict(mod)
-        scenarios.append({
-            "scenario_id": sid, "title": "+1.0 CGPA", "description": "What if you improved your CGPA?",
-            "change_summary": f"CGPA: {data.CGPA} → {mod['CGPA']}",
-            "original_risk": orig_risk, "modified_risk": mod_risk,
-            "risk_delta": orig_risk - mod_risk, # negative delta = increase in placement chance, but ui expects positive for "good"
-            # Wait, JS handles delta > 0 as reduction. Let's invert risks for JS compatibility if needed, 
-            # Or just return risk_delta = mod_risk - orig_risk (positive means increased chance)
-            "risk_reduction_percent": ((mod_risk - orig_risk)/orig_risk*100) if orig_risk>0 else 0,
-            "icon": "📚", "factor_changed": "CGPA",
-            "original_value": str(data.CGPA), "suggested_value": str(mod['CGPA'])
-        })
-        sid+=1
+    if routing_engine and data.skills and data.desired_role:
+        rec_job, _ = routing_engine.recommend(data.skills)
+        if rec_job:
+            transition = routing_engine.get_career_transition_path(rec_job, data.desired_role)
+            if transition and transition.get("skills_to_learn"):
+                skills_list = ", ".join(transition["skills_to_learn"][:3])
+                scenarios.append({
+                    "scenario_id": sid, "title": "Learn Missing Skills", "description": "What if you learned skills for your desired role?",
+                    "change_summary": f"Learn: {skills_list}",
+                    "original_risk": orig_risk, "modified_risk": orig_risk,
+                    "risk_delta": 0,
+                    "risk_reduction_percent": 0,
+                    "icon": "🧠", "factor_changed": "Skills",
+                    "original_value": "Current Skills", "suggested_value": skills_list
+                })
+                sid+=1
 
     # Add Internships
     if data.Internships < 3:
@@ -435,7 +439,6 @@ async def whatif_analysis(data: StudentData):
     
     # Calculate TRUE COMBINED risk by applying all positive changes together
     best_case = orig_dict.copy()
-    if data.CGPA < 9.0: best_case['CGPA'] = min(data.CGPA + 1.0, 10.0)
     if data.Internships < 3: best_case['Internships'] += 1
     if data.HistoryOfBacklogs == 1: best_case['HistoryOfBacklogs'] = 0
     
