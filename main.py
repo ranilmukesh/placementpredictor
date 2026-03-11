@@ -49,7 +49,7 @@ def setup_logging():
     root_logger.addHandler(console_handler)
     
     # Configure uvicorn loggers
-    for logger_name in ['uvicorn', 'uvicorn.access', 'uvicorn.error', 'fastapi']:
+    for logger_name in ['uvicorn', 'uvicorn.error', 'fastapi']:
         lg = logging.getLogger(logger_name)
         lg.setLevel(logging.INFO)
         # Clear existing handlers
@@ -58,6 +58,11 @@ def setup_logging():
         # Use root logger's handlers
         lg.handlers = root_logger.handlers
         lg.propagate = True
+    
+    # Disable uvicorn access logging (we use our own middleware)
+    access_logger = logging.getLogger('uvicorn.access')
+    access_logger.setLevel(logging.CRITICAL)  # Suppress access logs
+    access_logger.disabled = True
     
     return logging.getLogger(__name__)
 
