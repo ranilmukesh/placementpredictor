@@ -475,8 +475,14 @@ async def chat_m(req: dict):
     return {"response": resp}
 
 # --- Static File Serving for Frontend ---
-# 1. Mount styles.css and script.js so they can be loaded by index.html automatically
-app.mount("/static", StaticFiles(directory="."), name="static")
+# 1. Provide styles.css and script.js directly at root level
+@app.get("/styles.css")
+async def read_styles():
+    return FileResponse("styles.css")
+
+@app.get("/script.js")
+async def read_js():
+    return FileResponse("script.js")
 
 # 2. Serve index.html at root
 @app.get("/")

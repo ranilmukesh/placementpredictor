@@ -6,8 +6,8 @@
  */
 
 // API Configuration 
-// Use current host for API calls instead of hardcoded localhost
-const API_BASE_URL = window.location.origin;
+// Use specific port 8000 for backend API calls
+const API_BASE_URL = window.location.protocol + "//" + window.location.hostname + ":8000";
 
 // DOM Elements
 const elements = {
