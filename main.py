@@ -354,7 +354,7 @@ async def whatif_analysis(data: StudentData):
             if transition and transition.get("skills_to_learn"):
                 skills_list = ", ".join(transition["skills_to_learn"][:3])
                 scenarios.append({
-                    "scenario_id": sid, "title": "Learn Missing Skills", "description": "What if you learned skills for your desired role?",
+                    "scenario_id": sid, "title": "Career Path Suggestion", "description": "Learning these skills can help you transition towards your desired role. This suggestion does not directly impact your placement probability, which is based on academic factors.",
                     "change_summary": f"Learn: {skills_list}",
                     "original_risk": orig_risk, "modified_risk": orig_risk,
                     "risk_delta": 0,
