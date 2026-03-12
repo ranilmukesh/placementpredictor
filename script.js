@@ -555,7 +555,8 @@ function getRecommendations(riskLevel) {
     const skillsRec = currentPrediction?.missing_skills && currentPrediction.missing_skills.length > 0 ? {
         icon: '🛠️',
         title: 'Skill Gaps',
-        text: `Focus on mastering: ${currentPrediction.missing_skills.slice(0, 5).join(', ')}${currentPrediction.missing_skills.length > 5 ? '...' : ''}`
+        // Show full list of missing skills rather than truncating
+        text: `Focus on mastering: ${currentPrediction.missing_skills.join(', ')}`
     } : null;
 
     let base = [
