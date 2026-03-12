@@ -346,108 +346,104 @@ async def whatif_analysis(data: StudentData):
     
     scenarios = []
     sid = 1
-    
+
+    def add_scenario(mod_dict, title, description, change_summary, icon, factor_changed, original_value, suggested_value, mod_risk=None):
+        nonlocal sid
+        if mod_risk is None:
+            mod_risk = _predict(mod_dict)
+        scenarios.append({
+            "scenario_id": sid,
+            "title": title,
+            "description": description,
+            "change_summary": change_summary,
+            "original_risk": orig_risk,
+            "modified_risk": mod_risk,
+            "risk_delta": mod_risk - orig_risk,
+            "risk_reduction_percent": ((mod_risk - orig_risk) / (orig_risk if orig_risk > 0 else 1) * 100),
+            "icon": icon,
+            "factor_changed": factor_changed,
+            "original_value": str(original_value),
+            "suggested_value": str(suggested_value)
+        })
+        sid += 1
+
+    # PR Specific: Career Path Suggestion (from Routing Engine)
     if routing_engine and data.skills and data.desired_role:
         rec_job, _ = routing_engine.recommend(data.skills)
         if rec_job:
             transition = routing_engine.get_career_transition_path(rec_job, data.desired_role)
             if transition and transition.get("skills_to_learn"):
-                skills_list = ", ".join(transition["skills_to_learn"][:3])
-                scenarios.append({
-                    "scenario_id": sid, "title": "Career Path Suggestion", "description": "Learning these skills can help you transition towards your desired role. This suggestion does not directly impact your placement probability, which is based on academic factors.",
-                    "change_summary": f"Learn: {skills_list}",
-                    "original_risk": orig_risk, "modified_risk": orig_risk,
-                    "risk_delta": 0,
-                    "risk_reduction_percent": 0,
-                    "icon": "🧠", "factor_changed": "Skills",
-                    "original_value": "Current Skills", "suggested_value": skills_list
-                })
-                sid+=1
+                # Show full list of skills to learn (do not truncate to 3)
+                skills_list = ", ".join(transition["skills_to_learn"])
+                add_scenario(
+                    orig_dict, "Career Path Suggestion", 
+                    "Learning these skills can help you transition towards your desired role.",
+                    f"Learn: {skills_list}", "🧠", "Skills",
+                    "Current Skills", skills_list, mod_risk=orig_risk
+                )
+    
+    # Increase CGPA
+    if data.CGPA < 9.0:
+        mod = orig_dict.copy()
+        mod['CGPA'] = min(data.CGPA + 1.0, 10.0)
+        add_scenario(
+            mod, "+1.0 CGPA", "What if you improved your CGPA?",
+            f"CGPA: {data.CGPA} → {mod['CGPA']}", "📚", "CGPA",
+            str(data.CGPA), str(mod['CGPA'])
+        )
 
     # Add Internships
     if data.Internships < 3:
         mod = orig_dict.copy()
         mod['Internships'] += 1
-        mod_risk = _predict(mod)
-        scenarios.append({
-            "scenario_id": sid, "title": "Extra Internship", "description": "What if you did one more internship?",
-            "change_summary": f"Internships: {data.Internships} → {mod['Internships']}",
-            "original_risk": orig_risk, "modified_risk": mod_risk,
-            "risk_delta": orig_risk - mod_risk,
-            "risk_reduction_percent": ((mod_risk - orig_risk)/orig_risk*100) if orig_risk>0 else 0,
-            "icon": "💼", "factor_changed": "Internships",
-            "original_value": str(data.Internships), "suggested_value": str(mod['Internships'])
-        })
-        sid+=1
+        add_scenario(
+            mod, "Extra Internship", "What if you did one more internship?",
+            f"Internships: {data.Internships} → {mod['Internships']}", "💼", "Internships",
+            str(data.Internships), str(mod['Internships'])
+        )
         
     # Clear Backlogs
     if data.HistoryOfBacklogs == 1:
         mod = orig_dict.copy()
         mod['HistoryOfBacklogs'] = 0
-        mod_risk = _predict(mod)
-        scenarios.append({
-            "scenario_id": sid, "title": "Clear Backlogs", "description": "What if you had no history of backlogs?",
-            "change_summary": "Backlogs: Yes → No",
-            "original_risk": orig_risk, "modified_risk": mod_risk,
-            "risk_delta": orig_risk - mod_risk,
-            "risk_reduction_percent": ((mod_risk - orig_risk)/orig_risk*100) if orig_risk>0 else 0,
-            "icon": "✅", "factor_changed": "HistoryOfBacklogs",
-            "original_value": "Yes", "suggested_value": "No"
-        })
-        sid+=1
+        add_scenario(
+            mod, "Clear Backlogs", "What if you had no history of backlogs?",
+            "Backlogs: Yes → No", "✅", "HistoryOfBacklogs",
+            "Yes", "No"
+        )
         
-    # Change Stream (Example: If not CS, what if CS?)
+    # Change Stream
     if data.Stream != "Computer Science" and "Computer Science" in le_stream.classes_:
         mod = orig_dict.copy()
         mod['Stream'] = "Computer Science"
         mod_risk = _predict(mod)
-        if (orig_risk - mod_risk) < 0: # Only suggest if it improves chance
-            scenarios.append({
-                "scenario_id": sid, "title": "Switch to CS", "description": "What if you switched your stream to Computer Science?",
-                "change_summary": f"Stream: {data.Stream} → Computer Science",
-                "original_risk": orig_risk, "modified_risk": mod_risk,
-                "risk_delta": orig_risk - mod_risk,
-                "risk_reduction_percent": ((mod_risk - orig_risk)/orig_risk*100) if orig_risk>0 else 0,
-                "icon": "💻", "factor_changed": "Stream",
-                "original_value": data.Stream, "suggested_value": "Computer Science"
-            })
-            sid+=1
+        if mod_risk > orig_risk:
+            add_scenario(
+                mod, "Switch to CS", "What if you switched your stream to Computer Science?",
+                f"Stream: {data.Stream} → Computer Science", "💻", "Stream",
+                data.Stream, "Computer Science", mod_risk=mod_risk
+            )
             
     # Stay in Hostel
     if data.Hostel == 0:
         mod = orig_dict.copy()
         mod['Hostel'] = 1
         mod_risk = _predict(mod)
-        if (orig_risk - mod_risk) < 0: # Only suggest if it improves chance
-            scenarios.append({
-                "scenario_id": sid, "title": "Stay in Hostel", "description": "What if you stayed in a hostel? (More peer interactions)",
-                "change_summary": "Hostel: No → Yes",
-                "original_risk": orig_risk, "modified_risk": mod_risk,
-                "risk_delta": orig_risk - mod_risk,
-                "risk_reduction_percent": ((mod_risk - orig_risk)/orig_risk*100) if orig_risk>0 else 0,
-                "icon": "🏢", "factor_changed": "Hostel",
-                "original_value": "No", "suggested_value": "Yes"
-            })
-            sid+=1
+        if mod_risk > orig_risk:
+            add_scenario(
+                mod, "Stay in Hostel", "What if you stayed in a hostel?",
+                "Hostel: No → Yes", "🏢", "Hostel",
+                "No", "Yes", mod_risk=mod_risk
+            )
 
-    import math
-    for s in scenarios:
-        # Invert delta so positive = 'improvement' for the JS UI
-        s['risk_delta'] = s['modified_risk'] - s['original_risk']
-        
     scenarios.sort(key=lambda x: x['risk_delta'], reverse=True)
     
-    # Calculate TRUE COMBINED risk by applying all positive changes together
+    # Combined Best Case
     best_case = orig_dict.copy()
+    if data.CGPA < 9.0: best_case['CGPA'] = min(data.CGPA + 1.0, 10.0)
     if data.Internships < 3: best_case['Internships'] += 1
     if data.HistoryOfBacklogs == 1: best_case['HistoryOfBacklogs'] = 0
     
-    # Optional stream switch if it was a scenario that improved things
-    if data.Stream != "Computer Science" and "Computer Science" in le_stream.classes_:
-        # re-check if it's better
-        if _predict(best_case.copy()) < _predict({**best_case, 'Stream': 'Computer Science'}):
-             best_case['Stream'] = 'Computer Science'
-
     combined_risk = _predict(best_case)
     combined_level, _ = get_placement_level(combined_risk / 100)
 
