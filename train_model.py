@@ -6,7 +6,11 @@ import shap
 import networkx as nx
 from collections import Counter
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.impute import SimpleImputer
+from sklearn.pipeline import Pipeline
+from sklearn.ensemble import StackingClassifier, RandomForestClassifier, GradientBoostingClassifier
+from sklearn.linear_model import LogisticRegression
 from imblearn.over_sampling import SMOTE
 import warnings
 warnings.filterwarnings('ignore')
@@ -47,19 +51,36 @@ def main():
         X_resampled, y_resampled, test_size=0.2, random_state=42
     )
     
-    print("\n[*] Training XGBoost Model...")
-    model = xgb.XGBClassifier(
-        n_estimators=100, 
-        learning_rate=0.1, 
-        max_depth=5, 
-        random_state=42, 
-        use_label_encoder=False, 
-        eval_metric='logloss'
+    print("\n[*] Building Preprocessor Pipeline...")
+    preprocessor = Pipeline([
+        ('imputer', SimpleImputer(strategy='median')),
+        ('scaler', StandardScaler())
+    ])
+
+    X_train_processed = preprocessor.fit_transform(X_train)
+    X_test_processed = preprocessor.transform(X_test)
+
+    print("\n[*] Training StackingClassifier Ensemble...")
+    estimators = [
+        ('rf', RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42)),
+        ('gbc', GradientBoostingClassifier(n_estimators=100, learning_rate=0.1, random_state=42)),
+        ('xgb', xgb.XGBClassifier(use_label_encoder=False, eval_metric='logloss', max_depth=4))
+    ]
+
+    stacking_model = StackingClassifier(
+        estimators=estimators,
+        final_estimator=LogisticRegression(),
+        cv=5,
+        stack_method='predict_proba'
     )
-    model.fit(X_train, y_train)
+    stacking_model.fit(X_train_processed, y_train)
+
+    accuracy = stacking_model.score(X_test_processed, y_test)
+    print(f"    [OK] Ensemble Training complete! Accuracy: {accuracy:.4f}")
     
-    accuracy = model.score(X_test, y_test)
-    print(f"    [OK] Training complete! Accuracy: {accuracy:.4f}")
+    print("\n[*] Training Standalone XGBoost for SHAP...")
+    standalone_xgb = xgb.XGBClassifier(use_label_encoder=False, eval_metric='logloss', max_depth=4)
+    standalone_xgb.fit(X_train_processed, y_train)
     
     print("\n[*] Initializing RoutingEngine from Career Data...")
     routing_engine = RoutingEngine(CAREER_DATA)
@@ -67,10 +88,11 @@ def main():
 
     print(f"\n[*] Saving artifacts to '{OUTPUT_PATH}'...")
     artifacts = {
-        'model': model,
+        'preprocessor': preprocessor,
+        'model': stacking_model,
+        'shap_model': standalone_xgb,
         'le_gender': le_gender,
         'le_stream': le_stream,
-        'feature_names': feature_names,
         'routing_engine': routing_engine
     }
     joblib.dump(artifacts, OUTPUT_PATH)

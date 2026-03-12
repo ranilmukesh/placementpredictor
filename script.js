@@ -6,8 +6,10 @@
  */
 
 // API Configuration 
-// Use current host for API calls instead of hardcoded localhost
-const API_BASE_URL = window.location.origin;
+// Smart API Configuration: Use port 8000 locally, but use the current origin for remote (HF/Production)
+const API_BASE_URL = (window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost")
+    ? window.location.protocol + "//" + window.location.hostname + ":8000"
+    : window.location.origin;
 
 // DOM Elements
 const elements = {
