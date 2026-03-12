@@ -67,26 +67,6 @@ class RoutingEngine:
         missing_skills = self.get_gap(best_job, user_skills)
         return best_job, missing_skills
 
-    def get_career_transition_path(self, current_job, target_job):
-        """Finds the shortest upskilling path between two roles via shared skills."""
-        if current_job not in self.G.nodes or target_job not in self.G.nodes:
-            return None
-
-        try:
-            # NetworkX finds the shortest path alternating: Job -> Skill -> Job
-            path = nx.shortest_path(self.G, source=current_job, target=target_job)
-
-            skills_to_learn = [node for node in path if node in self.all_unique_skills]
-            stepping_stones = [node for node in path if node in self.all_jobs and node not in (current_job, target_job)]
-
-            return {
-                "path": path,
-                "skills_to_learn": skills_to_learn,
-                "stepping_stones": stepping_stones
-            }
-        except nx.NetworkXNoPath:
-            return None
-
     def get_subgraph_figure_base64(self, center_node, user_skills, depth=1):
         try:
             if center_node not in self.G.nodes: return None
