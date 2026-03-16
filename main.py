@@ -506,7 +506,11 @@ async def read_index():
 # 3. Handle favicon if needed
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
-    return FileResponse("favicon.ico")
+    # Return 204 No Content if favicon doesn't exist to avoid 500 errors
+    if os.path.exists("favicon.ico"):
+        return FileResponse("favicon.ico")
+    from fastapi.responses import Response
+    return Response(status_code=204)
 
 if __name__ == "__main__":
     import uvicorn

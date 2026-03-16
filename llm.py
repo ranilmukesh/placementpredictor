@@ -45,6 +45,12 @@ def build_system_context(
     whatif: dict,
 ) -> str:
     """Build structured context string from student analysis data."""
+    
+    # Guard against None values
+    student_data = student_data or {}
+    prediction = prediction or {}
+    explanation = explanation or {}
+    whatif = whatif or {}
 
     # ── Student Profile ──
     student_lines = [

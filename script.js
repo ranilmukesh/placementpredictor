@@ -1128,7 +1128,7 @@ async function initializeChat() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                student_data: formData,
+                patient_data: formData,
                 prediction: currentPrediction,
                 explanation: currentExplanation,
                 whatif: currentWhatIf || {}
