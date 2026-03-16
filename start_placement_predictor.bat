@@ -68,7 +68,7 @@ echo.
 python train_model.py
 if errorlevel 1 (
     echo [ERROR] Model training failed!
-    echo Please check if all diabetes CSV dataset files exist in this folder.
+    echo Please check if the placement CSV dataset files exist in this folder.
     pause
     exit /b 1
 )
@@ -88,14 +88,15 @@ echo [4/6] Skipped training (using cached model).
 echo.
 
 :START_SERVERS
-echo [5/6] Starting API Server on http://127.0.0.1:8000 ...
-start "PlacementPredictor+ API" cmd /k "title PlacementPredictor+ API Server && color 0B && set NVIDIA_API_KEY=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 && python -m uvicorn main:app --host 127.0.0.1 --port 8000"
+echo [5/6] Starting API Server on http://127.0.0.1:7860 ...
+:: Fixed: Host 0.0.0.0 and Port 7860 to match main.py and HF patterns
+start "PlacementPredictor+ API" cmd /k "title PlacementPredictor+ API Server && color 0B && set NVIDIA_API_KEY=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 && python main.py"
 echo       Waiting for API to start...
 timeout /t 8 /nobreak >nul
 
 :: Validate the model loaded correctly by hitting /health
 echo       Validating model artifacts...
-curl -s http://127.0.0.1:8000/health 2>nul | findstr /C:"model_loaded" | findstr /C:"true" >nul 2>&1
+curl -s http://127.0.0.1:7860/health 2>nul | findstr /C:"model_loaded" | findstr /C:"true" >nul 2>&1
 if errorlevel 1 (
     echo [!] Model failed to load - version mismatch or corrupted pkl.
     echo       Killing API server and retraining...
@@ -113,26 +114,19 @@ if errorlevel 1 (
     echo       Retrained successfully!
     echo.
     echo [5/6] Restarting API Server...
-    start "PlacementPredictor+ API" cmd /k "title PlacementPredictor+ API Server && color 0B && set NVIDIA_API_KEY=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 && python -m uvicorn main:app --host 127.0.0.1 --port 8000"
+    start "PlacementPredictor+ API" cmd /k "title PlacementPredictor+ API Server && color 0B && set NVIDIA_API_KEY=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 && python main.py"
     timeout /t 8 /nobreak >nul
 )
 echo       API Server started!
-echo.
-
-echo [6/6] Starting Frontend Server on http://127.0.0.1:3000 ...
-start "PlacementPredictor+ Frontend" cmd /k "title PlacementPredictor+ Frontend && color 0E && python -m http.server 3000"
-timeout /t 2 /nobreak >nul
-echo       Frontend Server started!
 echo.
 
 echo ============================================================
 echo                    SERVERS ARE RUNNING!
 echo ============================================================
 echo.
-echo   API Documentation:  http://127.0.0.1:8000/docs
-echo   Frontend UI:        http://127.0.0.1:3000
+echo   Application UI:  http://127.0.0.1:7860
 echo.
-echo   TIP: Use the "Load JSON" button in the UI for quick testing
+echo   TIP: Use the "Demo Data" button in the UI for quick testing
 echo   TIP: Click the chat bubble after results for AI assistant
 echo   TIP: Use --force-train flag to force model retraining
 echo.
@@ -142,7 +136,7 @@ echo.
 :: Open the frontend in default browser
 echo Opening PlacementPredictor+ in your browser...
 timeout /t 2 /nobreak >nul
-start http://127.0.0.1:3000
+start http://127.0.0.1:7860
 
 echo.
 echo Press any key to close this launcher (servers will keep running)...

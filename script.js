@@ -1,6 +1,6 @@
 /**
- * CardioSense+ Frontend Application
- * AI-Powered Stroke Risk Assessment Interface
+ * PlacementPredictor+ Frontend Application
+ * AI-Powered Placement Prediction & Career Routing
  * 
  * Connects to FastAPI backend for predictions and SHAP explanations
  */
@@ -8,13 +8,13 @@
 // API Configuration 
 // Smart API Configuration: Use port 8000 locally, but use the current origin for remote (HF/Production)
 const API_BASE_URL = (window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost")
-    ? window.location.protocol + "//" + window.location.hostname + ":8000"
+    ? window.location.protocol + "//" + window.location.hostname + ":7860"
     : window.location.origin;
 
 // DOM Elements
 const elements = {
     loadingOverlay: document.getElementById('loadingOverlay'),
-    patientForm: document.getElementById('patientForm'),
+    studentForm: document.getElementById('patientForm'),
     submitBtn: document.getElementById('submitBtn'),
     resultsSection: document.getElementById('resultsSection'),
     assessmentForm: document.getElementById('assessmentForm'),
@@ -187,7 +187,7 @@ function setupSkillsAutocomplete() {
  */
 function setupEventListeners() {
     // Form submission
-    elements.patientForm.addEventListener('submit', handleFormSubmit);
+    elements.studentForm.addEventListener('submit', handleFormSubmit);
 
     // Back button
     elements.backBtn.addEventListener('click', showForm);
@@ -478,7 +478,6 @@ function createFactorCard(factor, maxImpact) {
                 ${factor.direction}
             </span>
         </div>
-        <p class="factor-interpretation">${factor.interpretation}</p>
         <div class="factor-bar">
             <div class="factor-bar-fill ${isPositive ? 'positive' : 'negative'}" 
                  style="width: 0%"
@@ -1149,7 +1148,7 @@ async function initializeChat() {
         console.error('Chat init error:', error);
         removeTypingIndicator();
         addChatMessage('system',
-            '⚠️ Could not connect to CardioSense AI. Make sure NVIDIA_API_KEY is set and agno is installed.'
+            '⚠️ Could not connect to Placement AI. Make sure NVIDIA_API_KEY is set and agno is installed.'
         );
         setChatStatus('Offline');
     }

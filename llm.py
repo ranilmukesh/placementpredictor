@@ -45,6 +45,12 @@ def build_system_context(
     whatif: dict,
 ) -> str:
     """Build structured context string from student analysis data."""
+    
+    # Guard against None values
+    student_data = student_data or {}
+    prediction = prediction or {}
+    explanation = explanation or {}
+    whatif = whatif or {}
 
     # ── Student Profile ──
     student_lines = [
@@ -117,7 +123,7 @@ def start_chat_session(
     Start a new chat session with student context injected.
     Returns (session_id, greeting_message_text).
     """
-    session_id = f"cs-{uuid.uuid4().hex[:8]}"
+    session_id = f"pp-{uuid.uuid4().hex[:8]}"
     system_context = build_system_context(patient_data, prediction, explanation, whatif)
 
     # Create agent following exact Agno SDK pattern from the docs
