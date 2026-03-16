@@ -1,6 +1,6 @@
 /* ============================================
-   CardioSense+ Styles
-   Premium Medical AI Interface
+   PlacementPredictor+ Styles
+   Premium Career AI Interface
    Color Palette: Cream (#FFFDF2), Black (#000000)
    ============================================ */
 
@@ -23,6 +23,11 @@
     --accent-gold-light: #E5B82A;
     --accent-sage: #7A9E7E;
     --accent-sage-light: #8FB894;
+
+    /* Demo Button Styles */
+    --demo-btn-bg: #E85D4C;
+    --demo-btn-hover: #D64D3D;
+    --demo-btn-text: #FFFFFF;
 
     /* Risk Colors */
     --risk-low: #4CAF50;
@@ -1031,13 +1036,13 @@ input[type="number"]::placeholder {
 }
 
 .factor-direction.increases {
-    background: var(--risk-high-bg);
-    color: var(--risk-high);
+    background: var(--risk-low-bg);
+    color: var(--risk-low);
 }
 
 .factor-direction.reduces {
-    background: var(--risk-low-bg);
-    color: var(--risk-low);
+    background: var(--risk-high-bg);
+    color: var(--risk-high);
 }
 
 .factor-interpretation {
@@ -1060,11 +1065,11 @@ input[type="number"]::placeholder {
 }
 
 .factor-bar-fill.positive {
-    background: linear-gradient(to right, var(--accent-coral), var(--risk-high));
+    background: linear-gradient(to right, var(--accent-teal), var(--risk-low));
 }
 
 .factor-bar-fill.negative {
-    background: linear-gradient(to right, var(--accent-teal), var(--risk-low));
+    background: linear-gradient(to right, var(--accent-coral), var(--risk-high));
 }
 
 /* Info Card */
@@ -2450,3 +2455,54 @@ input:checked+.sim-slider-round:before {
         scroll-behavior: auto !important;
     }
 }
+
+/* Demo Button Styling */
+.demo-btn-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: var(--space-lg);
+    width: 100%;
+}
+
+.demo-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--demo-btn-bg);
+    color: var(--demo-btn-text);
+    border: none;
+    padding: 12px 24px;
+    border-radius: var(--radius-md);
+    font-family: var(--font-primary);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: var(--shadow-md);
+    transition: var(--transition-base);
+    z-index: 10;
+}
+
+.demo-btn:hover {
+    background: var(--demo-btn-hover);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.demo-btn:active {
+    transform: translateY(0);
+}
+
+.demo-btn-icon {
+    font-size: 1.2rem;
+}
+
+.demo-btn-text {
+    letter-spacing: 0.02em;
+}
+
+/* Chat Header Fix */
+.chat-name {
+    font-size: 0.9rem;
+    font-weight: 700;
+    margin: 0;
+}

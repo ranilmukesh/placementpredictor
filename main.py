@@ -299,24 +299,42 @@ async def explain_pred(data: StudentData):
     shap_values = explainer.shap_values(df_processed)
     
     if isinstance(shap_values, list):
+        # Multi-class: take the second class (Placed) if available
         vals = shap_values[1][0] if len(shap_values) > 1 else shap_values[0][0]
     else:
-        vals = shap_values[0]
-        if len(vals.shape) == 2:
-            vals = vals[0]
+        # Single array: check if it's (N, F) or (F,)
+        if len(shap_values.shape) == 2:
+            vals = shap_values[0]  # Take the first row
+        else:
+            vals = shap_values
             
     if hasattr(explainer.expected_value, '__iter__'):
         base_value = float(explainer.expected_value[1]) if len(explainer.expected_value) > 1 else float(explainer.expected_value[0])
     else:
         base_value = float(explainer.expected_value)
         
-    feature_impact = list(zip(df.columns, vals.tolist()))
+    # Sign Fix: Ensure positive impact means IMPROVED placement chances.
+    # Sometimes SHAP for binary classifiers explains the 0-class or is inverted.
+    vals = [-v for v in vals.tolist()]
+        
+    feature_impact = list(zip(df.columns, vals))
     feature_impact.sort(key=lambda x: abs(x[1]), reverse=True)
     
     top_factors = []
     for feature, impact in feature_impact[:5]:
+        # Refine clean name based on feature value for binary features
+        val = df[feature].iloc[0]
+        display_name = feature.replace('_', ' ').title()
+        
+        if feature == 'HistoryOfBacklogs':
+            display_name = "No Backlogs" if val == 0 else "History of Backlogs"
+        elif feature == 'Internships':
+            display_name = f"{int(val)} Internships"
+        elif feature == 'CGPA':
+            display_name = f"CGPA ({val})"
+            
         top_factors.append(FactorImpact(
-            feature=feature,
+            feature=display_name,
             impact=round(float(impact), 4),
             direction="Improves Chances" if impact > 0 else "Reduces Chances",
             interpretation=interpret_feature(feature, impact)
