@@ -44,6 +44,18 @@ let currentFormData = null;
 let availableSkills = [];
 let selectedSkills = [];
 
+function encodeBacklogsFromCheckbox(checkboxId = 'backlogs') {
+    return document.getElementById(checkboxId).checked ? 1 : 0;
+}
+
+function decodeBacklogsToChecked(value) {
+    return Number(value) === 1;
+}
+
+function encodeHostelFromCheckbox(checkboxId = 'hostel') {
+    return document.getElementById(checkboxId).checked ? 1 : 0;
+}
+
 /**
  * Initialize the application
  */
@@ -270,8 +282,8 @@ function collectFormData() {
         Stream: document.getElementById('stream').value,
         Internships: parseInt(document.getElementById('internships').value) || 0,
         CGPA: parseFloat(document.getElementById('cgpa').value) || 0,
-        Hostel: document.getElementById('hostel').checked ? 1 : 0,
-        HistoryOfBacklogs: document.getElementById('backlogs').checked ? 1 : 0,
+        Hostel: encodeHostelFromCheckbox('hostel'),
+        HistoryOfBacklogs: encodeBacklogsFromCheckbox('backlogs'),
         skills: document.getElementById('skills').value.split(',').map(s => s.trim()).filter(s => s),
         desired_role: document.getElementById('desired_role').value || null
     };
@@ -950,7 +962,7 @@ function initSimulator() {
 
     // Toggle Setup
     const toggle = document.getElementById('simBacklogToggle');
-    toggle.checked = (currentFormData.HistoryOfBacklogs === 1);
+    toggle.checked = decodeBacklogsToChecked(currentFormData.HistoryOfBacklogs);
     toggle.onchange = () => { triggerSimulate(); };
 }
 
@@ -990,8 +1002,7 @@ async function simulateRisk() {
     simulatedData.Internships = parseInt(document.getElementById('simInternNum').value);
     simulatedData.CGPA = parseFloat(document.getElementById('simCGPANum').value);
 
-    const hasBacklog = document.getElementById('simBacklogToggle').checked;
-    simulatedData.HistoryOfBacklogs = hasBacklog ? 1 : 0;
+    simulatedData.HistoryOfBacklogs = encodeBacklogsFromCheckbox('simBacklogToggle');
 
     try {
         const response = await fetchPrediction(simulatedData);
