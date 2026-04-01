@@ -38,6 +38,20 @@ _chat_db = SqliteDb(db_file="tmp/placement_chat.db")
 _sessions: dict = {}
 
 
+def _binary_to_yes_no(value) -> str:
+    """Map binary-encoded values to dataset semantics: 0 = No, 1 = Yes."""
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes"}:
+            return "Yes"
+        if normalized in {"0", "false", "no", ""}:
+            return "No"
+    try:
+        return "Yes" if int(value) == 1 else "No"
+    except Exception:
+        return "No"
+
+
 def build_system_context(
     student_data: dict,
     prediction: dict,
@@ -59,8 +73,8 @@ def build_system_context(
         f"Stream: {student_data.get('Stream', 'N/A')}",
         f"Internships: {student_data.get('Internships', 'N/A')}",
         f"CGPA: {student_data.get('CGPA', 'N/A')}",
-        f"Hostel: {'Yes' if student_data.get('Hostel') else 'No'}",
-        f"History of Backlogs: {'Yes' if student_data.get('HistoryOfBacklogs') else 'No'}",
+        f"Hostel: {_binary_to_yes_no(student_data.get('Hostel'))}",
+        f"History of Backlogs: {_binary_to_yes_no(student_data.get('HistoryOfBacklogs'))}",
         f"Skills: {', '.join(student_data.get('skills', []))}",
         f"Desired Role: {student_data.get('desired_role', 'Not Specified')}"
     ]

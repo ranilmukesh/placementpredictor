@@ -157,8 +157,8 @@ class StudentData(BaseModel):
     Stream: str = Field(..., description="Stream of study")
     Internships: int = Field(..., ge=0)
     CGPA: float = Field(..., ge=0, le=10)
-    Hostel: int = Field(..., description="1 if hostel, 0 if not")
-    HistoryOfBacklogs: int = Field(..., description="1 if backlogs, 0 if not")
+    Hostel: int = Field(..., ge=0, le=1, description="0 = day scholar (not in hostel), 1 = lives in hostel")
+    HistoryOfBacklogs: int = Field(..., ge=0, le=1, description="0 = no history of backlogs, 1 = history of backlogs")
     skills: List[str] = Field(default=[], description="List of user skills for routing")
     desired_role: Optional[str] = Field(default=None, description="User's desired job role")
 
@@ -191,6 +191,16 @@ class OptionsResponse(BaseModel):
     skills: List[str]
     jobs: List[str]
 
+
+def normalize_backlogs_value(value: int) -> int:
+    """Normalize backlog input to strict dataset encoding: 0 = No, 1 = Yes."""
+    return 1 if int(value) == 1 else 0
+
+
+def normalize_hostel_value(value: int) -> int:
+    """Normalize hostel input to strict dataset encoding: 0 = No, 1 = Yes."""
+    return 1 if int(value) == 1 else 0
+
 def prepare_input(data: StudentData) -> pd.DataFrame:
     try:
         g = le_gender.transform([data.Gender])[0]
@@ -205,8 +215,8 @@ def prepare_input(data: StudentData) -> pd.DataFrame:
         'Stream': s,
         'Internships': data.Internships,
         'CGPA': data.CGPA,
-        'Hostel': data.Hostel,
-        'HistoryOfBacklogs': data.HistoryOfBacklogs
+        'Hostel': normalize_hostel_value(data.Hostel),
+        'HistoryOfBacklogs': normalize_backlogs_value(data.HistoryOfBacklogs)
     }])
     # Extract columns naturally based on dict order which matches train features order
     return df
@@ -359,6 +369,10 @@ async def whatif_analysis(data: StudentData):
         return float(model.predict_proba(df_processed)[0][1]) * 100
 
     orig_dict = data.model_dump()
+    orig_dict['Hostel'] = normalize_hostel_value(orig_dict.get('Hostel', 0))
+    orig_dict['HistoryOfBacklogs'] = normalize_backlogs_value(orig_dict.get('HistoryOfBacklogs', 0))
+    current_hostel = orig_dict['Hostel']
+    current_backlogs = orig_dict['HistoryOfBacklogs']
     orig_risk = _predict(orig_dict)
     orig_level, _ = get_placement_level(orig_risk / 100)
     
@@ -421,7 +435,7 @@ async def whatif_analysis(data: StudentData):
         )
         
     # Clear Backlogs
-    if data.HistoryOfBacklogs == 1:
+    if current_backlogs == 1:
         mod = orig_dict.copy()
         mod['HistoryOfBacklogs'] = 0
         add_scenario(
@@ -443,7 +457,7 @@ async def whatif_analysis(data: StudentData):
             )
             
     # Stay in Hostel
-    if data.Hostel == 0:
+    if current_hostel == 0:
         mod = orig_dict.copy()
         mod['Hostel'] = 1
         mod_risk = _predict(mod)
@@ -460,7 +474,7 @@ async def whatif_analysis(data: StudentData):
     best_case = orig_dict.copy()
     if data.CGPA < 9.0: best_case['CGPA'] = min(data.CGPA + 1.0, 10.0)
     if data.Internships < 3: best_case['Internships'] += 1
-    if data.HistoryOfBacklogs == 1: best_case['HistoryOfBacklogs'] = 0
+    if current_backlogs == 1: best_case['HistoryOfBacklogs'] = 0
     
     combined_risk = _predict(best_case)
     combined_level, _ = get_placement_level(combined_risk / 100)
